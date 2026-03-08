@@ -12,13 +12,20 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+enum class SortOrder {
+    NONE,
+    RATING_DESC,
+    RATING_ASC
+}
+
 sealed class ProductUiState {
     object Loading : ProductUiState()
     data class Success(
         val products: List<Product>,
         val currentSkip: Int = 0,
         val isPaginating: Boolean = false,
-        val isEndOfList: Boolean = false
+        val isEndOfList: Boolean = false,
+        val sortOrder: SortOrder = SortOrder.NONE
     ) : ProductUiState()
     data class Error(val message: String) : ProductUiState()
 }
@@ -38,6 +45,25 @@ class ProductViewModel @Inject constructor(
         fetchInitialProducts()
     }
 
+    fun updateSortOrder(newOrder: SortOrder) {
+        val currentState = _uiState.value as? ProductUiState.Success ?: return
+        if (currentState.sortOrder == newOrder) return
+
+        val sortedList = sortProducts(currentState.products, newOrder)
+        _uiState.value = currentState.copy(
+            products = sortedList,
+            sortOrder = newOrder
+        )
+    }
+
+    private fun sortProducts(products: List<Product>, order: SortOrder): List<Product> {
+        return when (order) {
+            SortOrder.NONE -> products.sortedBy { it.id }
+            SortOrder.RATING_DESC -> products.sortedByDescending { it.rating ?: 0.0 }
+            SortOrder.RATING_ASC -> products.sortedBy { it.rating ?: 0.0 }
+        }
+    }
+
     private fun fetchInitialProducts() {
         if (fetchJob?.isActive == true) return
 
@@ -47,10 +73,11 @@ class ProductViewModel @Inject constructor(
             val result = repository.getProducts(skip = 0, limit = limit)
             result.onSuccess { response ->
                 _uiState.value = ProductUiState.Success(
-                    products = response.products,
+                    products = sortProducts(response.products, SortOrder.NONE),
                     currentSkip = 0,
                     isPaginating = false,
-                    isEndOfList = response.skip + response.limit >= response.total
+                    isEndOfList = response.skip + response.limit >= response.total,
+                    sortOrder = SortOrder.NONE
                 )
             }.onFailure { exception ->
                 _uiState.value = ProductUiState.Error(exception.message ?: "An unknown error occurred")
@@ -71,11 +98,16 @@ class ProductViewModel @Inject constructor(
         fetchJob = viewModelScope.launch {
             val result = repository.getProducts(skip = nextSkip, limit = limit)
             result.onSuccess { response ->
+                // Combine the old list with the newly fetched items
+                val combinedList = currentState.products + response.products
+                
                 _uiState.value = ProductUiState.Success(
-                    products = currentState.products + response.products,
+                    // Immediately sort the combined list using the user's current sorting preference
+                    products = sortProducts(combinedList, currentState.sortOrder),
                     currentSkip = nextSkip,
                     isPaginating = false,
-                    isEndOfList = response.skip + response.limit >= response.total
+                    isEndOfList = response.skip + response.limit >= response.total,
+                    sortOrder = currentState.sortOrder
                 )
             }.onFailure {
                 // On failure, we stop paginating but keep the existing list so the user can try again
