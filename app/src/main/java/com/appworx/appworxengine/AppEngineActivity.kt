@@ -4,11 +4,9 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
+import com.appworx.appworxengine.presentation.products.ProductListScreen
 import com.appworx.appworxengine.ui.theme.AppWorxEngineTheme
 import dagger.hilt.android.AndroidEntryPoint
 
@@ -19,9 +17,7 @@ class AppEngineActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             AppWorxEngineTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    println(innerPadding)
-                }
+                ProductListScreen()
             }
         }
     }
